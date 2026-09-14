@@ -1,0 +1,40 @@
+flowchart RL
+    classDef resolved fill:#d4f7d4,stroke:#2f9e44,color:#1a1a1a
+    classDef open fill:#fff3cd,stroke:#d4a017,color:#1a1a1a
+    classDef suggestion fill:#e0e7ff,stroke:#4c6ef5,color:#1a1a1a
+    classDef deferred fill:#f1f3f5,stroke:#adb5bd,color:#495057
+
+    %% Skeleton project plan — replace milestone names/descriptions with your own.
+    %% Keep this file updated as decisions are made; it's meant to be the
+    %% one-glance status board for both you and Claude across sessions.
+
+    subgraph T1["Execution & UI track"]
+        M1["M1: Order entry / execution<br/>Describe: what places the trade, how it's approved"]
+        M2["M2: Web UI for approval / monitoring"]
+        M3["M3: Database (source of truth)<br/>e.g. SQLite: positions, orders, state"]
+        M1 <-->|paired, co-develop| M2
+        M3 -. suggest merging in, not sequencing strictly after .-> M1
+    end
+
+    subgraph T2["Strategy logic track — independent, can build in parallel with T1"]
+        M4["M4: Core signal/strategy logic<br/>Entry/exit rules, risk params"]
+    end
+
+    subgraph T3["Data / scanning track"]
+        M5["M5: Scanner / data pipeline"]
+    end
+
+    subgraph T4["Validation — do this last, deliberately"]
+        M6["M6: Backtesting against the final rule set"]
+    end
+
+    M4 -->|needs the core engine| M5
+    M4 -. deferred until last .-> M6
+
+    Q1{{"OPEN: any open question that needs a decision<br/>before the next milestone starts"}}
+    M6 --- Q1
+
+    class M1,M2 resolved
+    class M3 suggestion
+    class Q1 open
+    class M6 deferred

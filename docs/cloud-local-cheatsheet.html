@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code: Cloud vs Local Cheat Sheet</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#161d28; --border:#243044;
+    --text:#e6edf5; --muted:#9fb0c3; --accent:#4c8dff; --good:#2f9e44; --warn:#d4a017; --bad:#e5484d;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f7f9fc; --panel:#ffffff; --panel2:#f0f3f8; --border:#dbe3ee;
+      --text:#1a2330; --muted:#5b6b80; --accent:#2c5fd6; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;padding:32px 20px 64px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:1.6em;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 32px}
+  h2{font-size:1.15em;margin:40px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  p{margin:0 0 12px}
+  table{width:100%;border-collapse:collapse;margin:16px 0 8px;background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:var(--panel2);font-size:.85em;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  code{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:.9em}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:14px 0}
+  .tag{display:inline-block;font-size:.72em;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border-radius:4px;padding:2px 8px;margin-right:8px}
+  .tag.cloud{background:rgba(76,141,255,.15);color:var(--accent)}
+  .tag.local{background:rgba(47,158,68,.15);color:var(--good)}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:4px 0}
+  .checklist li::marker{content:"☐  "}
+  footer{margin-top:48px;color:var(--muted);font-size:.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Claude Code: Cloud vs Local Cheat Sheet</h1>
+  <p class="sub">What each environment can reach, when to use which, and how to keep them in sync on a quant/trading project.</p>
+
+  <h2>The core split</h2>
+  <table>
+    <tr><th></th><th><span class="tag cloud">Cloud</span></th><th><span class="tag local">Local</span></th></tr>
+    <tr><td>Runs where</td><td>Anthropic's hosted sandbox</td><td>Your own machine</td></tr>
+    <tr><td>Sees your repo</td><td>Yes, via GitHub</td><td>Yes, on disk</td></tr>
+    <tr><td>Sees the web</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Sees local-only services</td><td><strong>No</strong> — broker terminals (IBKR TWS/Gateway etc.), local-only databases, hardware, anything not reachable over the open internet</td><td>Yes</td></tr>
+    <tr><td>gh CLI / GitHub tooling</td><td>Usually preinstalled</td><td>Depends on your machine's setup — plain <code>git</code> always works</td></tr>
+    <tr><td>Persists between sessions</td><td>Session-scoped workspace; nothing survives unless committed to the repo or written to shared storage (Drive)</td><td>Whatever's on disk stays on disk</td></tr>
+    <tr><td>Best for</td><td>Scaffolding, docs, UI work, config, anything that doesn't need your desktop</td><td>Order-placement code, anything touching local-only services, final real-environment testing</td></tr>
+  </table>
+
+  <h2>Why this matters for a trading project specifically</h2>
+  <div class="card">
+    <p><strong>The scanner / order-placement code has to live local</strong> if it talks to a broker terminal (e.g. IBKR TWS/Gateway) that only runs on your desktop — a cloud session physically cannot reach it. Cloud sessions are fine for everything upstream and downstream of that: strategy logic, the dashboard UI, docs, tests against synthetic data.</p>
+  </div>
+
+  <h2>Splitting work across both in one prompt</h2>
+  <p>When a task has pieces for both environments, label them explicitly rather than burying the split in prose — a note like "this part is local" inside a paragraph is easy for a session to miss or misapply.</p>
+  <div class="card">
+    <p><strong>Do this:</strong></p>
+    <pre style="white-space:pre-wrap;margin:0"><code>CLOUD: build the FastAPI routes for trade approval and the React table that lists pending trades.
+
+LOCAL: wire the "approve" button to place the actual order via the IBKR adapter, and test against the paper account.</code></pre>
+  </div>
+
+  <h2>Keeping the two in sync</h2>
+  <ul>
+    <li><strong>Before checking "does X exist," run <code>git fetch --all</code>.</strong> Cloud and local can each be ahead of the other; a session that only looks at its own local branch state can miss work done in the other environment.</li>
+    <li><strong>Keep a <code>docs/latest-session-summary.md</code> in the repo</strong> that every session <em>overwrites</em> (not appends) at the end of its work. The next session — in either environment — reads this first instead of you re-explaining state.</li>
+    <li><strong>Use the Google Drive MCP connector for anything bigger than a session summary</strong> — running facts/decisions docs, longer-lived context you want both environments (and Project chat) to see without re-uploading. See the connector walkthrough below.</li>
+  </ul>
+
+  <h2>Quick decision checklist</h2>
+  <div class="card">
+    <ul class="checklist">
+      <li>Does this code need to talk to something only my machine can reach (broker terminal, local DB, hardware)? → <strong>Local</strong></li>
+      <li>Is this UI, docs, scaffolding, or logic that doesn't touch anything local-only? → <strong>Cloud</strong> is fine and usually faster to spin up</li>
+      <li>Does the task span both? → Write two labeled prompts, <code>CLOUD:</code> and <code>LOCAL:</code>, in the same message</li>
+      <li>Starting a new session cold? → Have it fetch <code>docs/latest-session-summary.md</code> from the repo first</li>
+    </ul>
+  </div>
+
+  <footer>Keep this file in <code>docs/</code> and update it as your own setup's specifics (broker, stack, repo layout) diverge from the generic version above.</footer>
+</div>
+</body>
+</html>
